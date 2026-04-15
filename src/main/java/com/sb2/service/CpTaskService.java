@@ -1,13 +1,19 @@
 package com.sb2.service;
 
+import com.sb2.dto.Item;
 import com.sb2.entity.CpTask;
+import com.sb2.entity.ExtractedData;
 import com.sb2.entity.TaskStatus;
+import com.sb2.exception.TaskNotFoundException;
 import com.sb2.repository.CpTaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -15,8 +21,12 @@ import java.util.UUID;
 public class CpTaskService {
 
     private final CpTaskRepository repository;
+    private final CpParserMock parserMock;
 
     public CpTask createTask(String fileName) {
+        if (Objects.isNull(fileName) || fileName.isEmpty()) {
+            throw new IllegalArgumentException("fileName must not be empty");
+        }
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -38,10 +48,11 @@ public class CpTaskService {
             task.setStatus(TaskStatus.PROCESSING);
             repository.save(task);
 
-            // 🔥 Тут будет "парсинг"
+            // TODO тут стоит расположить интеграцию с сервисом парсинга
             Thread.sleep(3000);
+            ExtractedData data = parserMock.parse(task.getFileName());
 
-            task.setExtractedData("{\"items\": []}");
+            task.setExtractedData(data);
             task.setStatus(TaskStatus.DONE);
 
         } catch (Exception e) {
@@ -54,6 +65,19 @@ public class CpTaskService {
     }
 
     public CpTask getTask(UUID id) {
-        return repository.findById(id).orElseThrow();
+        return repository.findById(id).orElseThrow(() -> new TaskNotFoundException(id));
+    }
+
+    public List<Item> getTopSuppliers(UUID taskId) {
+        CpTask task = repository.findById(taskId).orElseThrow();
+
+        if (task.getExtractedData() == null) {
+            throw new IllegalStateException("Task not processed yet");
+        }
+
+        return task.getExtractedData().getItems().stream()
+                .sorted(Comparator.comparing(Item::getPrice))
+                .limit(5)
+                .toList();
     }
 }
