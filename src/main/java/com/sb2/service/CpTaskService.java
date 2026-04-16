@@ -1,5 +1,6 @@
 package com.sb2.service;
 
+import com.sb2.constant.ErrorMessages;
 import com.sb2.dto.Item;
 import com.sb2.entity.CpTask;
 import com.sb2.entity.ExtractedData;
@@ -7,6 +8,7 @@ import com.sb2.entity.TaskStatus;
 import com.sb2.exception.TaskNotFoundException;
 import com.sb2.repository.CpTaskRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +18,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.sb2.constant.LoggerMessages.*;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CpTaskService {
@@ -24,8 +29,9 @@ public class CpTaskService {
     private final CpParserMock parserMock;
 
     public CpTask createTask(String fileName) {
+        log.info(CREATING_TASK_FOR_FILE, fileName);
         if (Objects.isNull(fileName) || fileName.isEmpty()) {
-            throw new IllegalArgumentException("fileName must not be empty");
+            throw new IllegalArgumentException(ErrorMessages.FILE_NAME_MUST_NOT_BE_EMPTY);
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -42,6 +48,7 @@ public class CpTaskService {
 
     @Async
     public void processTask(UUID taskId) {
+        log.info(START_PROCESSING_TASK, taskId);
         CpTask task = repository.findById(taskId).orElseThrow();
 
         try {
@@ -55,7 +62,10 @@ public class CpTaskService {
             task.setExtractedData(data);
             task.setStatus(TaskStatus.DONE);
 
+            log.info(TASK_PROCESSED_SUCCESSFULLY, taskId);
+
         } catch (Exception e) {
+            log.error(ERROR_PROCESSING_TASK, taskId, e.getMessage(), e);
             task.setStatus(TaskStatus.FAILED);
             task.setError(e.getMessage());
         }
@@ -72,7 +82,7 @@ public class CpTaskService {
         CpTask task = repository.findById(taskId).orElseThrow();
 
         if (task.getExtractedData() == null) {
-            throw new IllegalStateException("Task not processed yet");
+            throw new IllegalStateException(ErrorMessages.TASK_NOT_PROCESSED_YET);
         }
 
         return task.getExtractedData().getItems().stream()

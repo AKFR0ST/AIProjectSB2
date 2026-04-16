@@ -12,6 +12,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
+import static com.sb2.constant.ApiPaths.*;
+import static com.sb2.constant.SecurityConstants.ROLE_ADMIN;
+import static com.sb2.constant.SecurityConstants.ROLE_USER;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -22,13 +26,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui.html"
+                                SWAGGER_UI,
+                                V_3_API_DOCS,
+                                SWAGGER_UI_HTML
                         ).permitAll()
-                        .requestMatchers(HttpMethod.POST, "/cp/tasks").hasRole("USER")
-                        .requestMatchers(HttpMethod.GET, "/cp/tasks/**").hasRole("USER")
-                        .requestMatchers("/cp/tasks/*/top").hasRole("ADMIN")
+
+                        // сначала admin endpoint
+                        .requestMatchers(CP_TASKS_TOP).hasRole(ROLE_ADMIN)
+
+                        // потом остальные
+                        .requestMatchers(HttpMethod.POST, CP_TASKS).hasRole(ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, CP_TASKS_BY_ID).hasRole(ROLE_USER)
+
                         .anyRequest().authenticated()
                 )
                 .httpBasic(Customizer.withDefaults())
@@ -40,13 +49,13 @@ public class SecurityConfig {
         UserDetails user = User.builder()
                 .username("user")
                 .password("{noop}password")
-                .roles("USER")
+                .roles(ROLE_USER)
                 .build();
 
         UserDetails admin = User.builder()
                 .username("admin")
                 .password("{noop}admin")
-                .roles("ADMIN")
+                .roles(ROLE_ADMIN)
                 .build();
 
         return new InMemoryUserDetailsManager(user, admin);
