@@ -53,10 +53,20 @@ class CpTaskServiceTest {
     }
 
     @Test
-    void create_task_fail() {
+    void should_fail_when_fileName_is_empty() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> service.createTask("")
+        );
+
+        assertEquals("fileName must not be empty", ex.getMessage());
+    }
+
+    @Test
+    void should_fail_when_fileName_is_null() {
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createTask(null)
         );
 
         assertEquals("fileName must not be empty", ex.getMessage());
@@ -115,6 +125,30 @@ class CpTaskServiceTest {
     }
 
     @Test
+    void should_mark_task_as_failed_when_parser_throws_exception() {
+        UUID id = UUID.randomUUID();
+
+        CpTask task = new CpTask();
+        task.setId(id);
+        task.setFileName("bad.pdf");
+        task.setStatus(TaskStatus.CREATED);
+
+        when(repository.findById(id))
+                .thenReturn(Optional.of(task));
+
+        when(parser.parse(anyString()))
+                .thenThrow(new RuntimeException("parse error"));
+
+        when(repository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.processTask(id);
+
+        assertEquals(TaskStatus.FAILED, task.getStatus());
+        assertEquals("parse error", task.getError());
+    }
+
+    @Test
     void get_top_suppliers() {
 
         UUID id = UUID.randomUUID();
@@ -142,5 +176,46 @@ class CpTaskServiceTest {
 
         assertEquals(BigDecimal.valueOf(30), result.get(0).getPrice());
         assertEquals(BigDecimal.valueOf(50), result.get(1).getPrice());
+    }
+
+    @Test
+    void should_return_empty_list_when_no_items() {
+        UUID id = UUID.randomUUID();
+
+        CpTask task = new CpTask();
+        task.setId(id);
+
+        ExtractedData data = new ExtractedData();
+        data.setItems(List.of());
+
+        task.setExtractedData(data);
+
+        when(repository.findById(id)).thenReturn(Optional.of(task));
+
+        List<Item> result = service.getTopSuppliers(id);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void should_return_all_items_if_less_than_five() {
+        UUID id = UUID.randomUUID();
+
+        CpTask task = new CpTask();
+        task.setId(id);
+
+        ExtractedData data = new ExtractedData();
+        data.setItems(List.of(
+                new Item("A", BigDecimal.valueOf(100), "S1"),
+                new Item("B", BigDecimal.valueOf(50), "S2")
+        ));
+
+        task.setExtractedData(data);
+
+        when(repository.findById(id)).thenReturn(Optional.of(task));
+
+        List<Item> result = service.getTopSuppliers(id);
+
+        assertEquals(2, result.size());
     }
 }
